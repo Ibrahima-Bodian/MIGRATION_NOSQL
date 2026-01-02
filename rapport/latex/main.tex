@@ -1,0 +1,685 @@
+\documentclass[a4paper,12pt]{article}
+
+% ======================
+% Encodage / langue
+% ======================
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{pgfplotstable}
+\usepackage{pgf-pie}
+\usepackage{hyperref}
+
+% ======================
+% Mise en page / style
+% ======================
+\usepackage{graphicx}
+\usepackage{xcolor}
+\definecolor{myblue}{RGB}{0,102,204}
+
+\usepackage{tikz}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{hyperref}
+\usepackage{tocloft}
+\usepackage{setspace}
+\usepackage[margin=1in]{geometry}
+\usepackage{float}
+\usepackage{xurl}
+\usepackage{placeins}
+
+% Tableaux et listes
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{enumitem}
+
+% Code (si besoin)
+\usepackage{listings}
+
+% — Listes de mots-clés (optionnel) —
+\newlist{keywords}{description}{1}
+\setlist[keywords]{labelwidth=3cm, leftmargin=!, font=\bfseries}
+
+% — Interligne et espaces —
+\linespread{1.2}
+\titlespacing*{\section}{0pt}{*2}{*1.5}
+\titlespacing*{\subsection}{0pt}{*1.5}{*1}
+
+% — Couleurs personnalisées —
+\definecolor{ensiared}{RGB}{156,31,46}
+\definecolor{tocblue}{RGB}{0,102,204}
+\definecolor{codegray}{RGB}{80,80,80}
+
+% — Style ToC en bleu —
+\renewcommand{\cftsecfont}{\color{tocblue}}
+\renewcommand{\cftsubsecfont}{\color{tocblue}}
+\renewcommand{\cftsecpagefont}{\color{tocblue}}
+\renewcommand{\cftsubsecpagefont}{\color{tocblue}}
+
+\pagestyle{plain}
+
+% — Style listings pour le code —
+\lstset{
+  basicstyle=\ttfamily\small\color{codegray},
+  keywordstyle=\bfseries\color{ensiared},
+  stringstyle=\color{blue!60},
+  commentstyle=\itshape\color{green!50!black},
+  frame=single,
+  breaklines=true,
+  showstringspaces=false
+}
+
+\begin{document}
+
+% ======================
+% Page de garde (style demandé)
+% ======================
+\begin{titlepage}
+    \begin{tikzpicture}[remember picture, overlay]
+        \fill[ensiared] ([yshift=2cm]current page.south west) rectangle (current page.south east);
+        \fill[ensiared] ([yshift=2cm]current page.north west) rectangle (current page.north east);
+    \end{tikzpicture}
+
+    \centering
+    \vspace*{2cm}
+
+    % === Logos (optionnels) ===
+    % Remplacez les noms des fichiers par vos logos réels, ou supprimez ces lignes.
+    \includegraphics[width=0.40\textwidth]{img/sd logo.jpg}\hfill
+    \includegraphics[width=0.30\textwidth]{img/uca logo.png}\hfill
+
+    \vspace*{1cm}
+
+    {\color{white}\scshape\LARGE Base de données \& Systèmes décisionnels\par}
+    \vspace{0.6cm}
+    {\scshape\Large UNIVERSITÉ CLERMONT AUVERGNE — Campus Aurillac\par}
+
+    \vspace{1.2cm}
+    \hrule height 1pt
+    \vspace{0.5cm}
+    {\huge\bfseries Projet — PostgreSQL \texorpdfstring{$\rightarrow$}{->} MongoDB\par}
+    \vspace{0.2cm}
+    {\Large (Jointures, export JSON, import MongoDB, dénormalisation)\par}
+    \vspace{0.5cm}
+    \hrule height 1pt
+    \vspace{1.6cm}
+
+    \begin{minipage}[t]{0.5\textwidth}
+        \raggedright
+        {\Large\textbf{Réalisé par} :\par}
+        \vspace{0.2cm}
+        \begin{tabular}{l}
+            Ibrahima BODIAN \\
+            Auspicia DJIMA \\
+        \end{tabular}
+    \end{minipage}%
+    \begin{minipage}[t]{0.5\textwidth}
+        \raggedleft
+        {\Large\textbf{Encadrant} :\par}
+        \vspace{0.2cm}
+        \textit{BENALI RAMZI} \\
+        \vspace{0.6cm}
+    \end{minipage}
+
+    \vfill
+    {\color{black}\large Date : \textit{\today}\par}
+\end{titlepage}
+
+% ======================
+% Sommaire
+% ======================
+\renewcommand{\contentsname}{Sommaire}
+\tableofcontents
+\newpage
+
+% ======================
+% Corps du rapport
+% ======================
+
+\section{Objectif du projet}
+Ce projet a pour objectif de :
+\begin{itemize}
+  \item manipuler le dataset \textit{employees} dans PostgreSQL (exploration, contrôles, jointures) ;
+  \item mesurer le coût d’une jointure SQL (\texttt{employees} + \texttt{salaries} + \texttt{titles}) ;
+  \item optimiser l’accès via une \textbf{vue matérialisée} ;
+  \item exporter les tables PostgreSQL en fichiers \textbf{JSON} ;
+  \item importer ces fichiers JSON dans MongoDB via \textbf{mongoimport} ;
+  \item reproduire l’équivalent des jointures SQL dans MongoDB via \textbf{\$lookup} ;
+  \item \textbf{dénormaliser} les données (embedding) pour accélérer l’accès aux informations par employé ;
+  \item conclure sur les cas où cette dénormalisation est pertinente, et ceux où elle ne l’est pas.
+\end{itemize}
+
+\section{Environnement et données}
+\subsection{SGBD et outils utilisés}
+Les opérations ont été réalisées sur un environnement \textbf{Windows} (chemins \texttt{C:\textbackslash ...}) avec :
+\begin{itemize}
+  \item \textbf{PostgreSQL 18} (répertoire de données observé : \texttt{C:/Program Files/PostgreSQL/18/data}) ;
+  \item \textbf{MongoDB 8.2.0} et \textbf{mongosh 2.5.8} (versions affichées lors de la connexion).
+\end{itemize}
+
+\subsection{Tables / collections manipulées}
+Les 6 entités suivantes ont été manipulées dans PostgreSQL puis importées dans MongoDB :
+\begin{itemize}
+  \item \texttt{employees}
+  \item \texttt{departments}
+  \item \texttt{dept\_emp}
+  \item \texttt{dept\_manager}
+  \item \texttt{titles}
+  \item \texttt{salaries}
+\end{itemize}
+
+\section{Partie 1 — Exploration initiale sous PostgreSQL}
+\subsection{Aperçu rapide des tables}
+Les requêtes suivantes permettent de vérifier rapidement le contenu et l’ordre des données.
+
+\begin{lstlisting}[language=SQL,caption={Aperçu des tables (LIMIT 20)}]
+SELECT * FROM departments ORDER BY dept_no LIMIT 20;
+SELECT * FROM employees   ORDER BY emp_no  LIMIT 20;
+
+SELECT * FROM dept_emp     ORDER BY emp_no, from_date LIMIT 20;
+SELECT * FROM dept_manager ORDER BY dept_no, from_date LIMIT 20;
+
+SELECT * FROM titles   ORDER BY emp_no, from_date LIMIT 20;
+SELECT * FROM salaries ORDER BY emp_no, from_date LIMIT 20;
+\end{lstlisting}
+
+\subsection{Contrôle des volumes}
+On vérifie ensuite le nombre de lignes dans chaque table.
+
+\begin{lstlisting}[language=SQL,caption={Comptage des lignes par table}]
+SELECT 'departments'  AS table, COUNT(*) AS nb_lignes FROM departments
+UNION ALL SELECT 'employees',     COUNT(*) FROM employees
+UNION ALL SELECT 'dept_emp',      COUNT(*) FROM dept_emp
+UNION ALL SELECT 'dept_manager',  COUNT(*) FROM dept_manager
+UNION ALL SELECT 'titles',        COUNT(*) FROM titles
+UNION ALL SELECT 'salaries',      COUNT(*) FROM salaries;
+\end{lstlisting}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{l r}
+\toprule
+\textbf{Table} & \textbf{Nombre de lignes} \\
+\midrule
+departments    & 9 \\
+employees      & 300024 \\
+dept\_emp      & 331603 \\
+dept\_manager  & 24 \\
+titles         & 443308 \\
+salaries       & 2844047 \\
+\bottomrule
+\end{tabular}
+\caption{Volumes observés (PostgreSQL puis confirmés dans MongoDB).}
+\end{table}
+\FloatBarrier
+
+\subsection{Enregistrements \textit{actuels} (to\_date = 9999-01-01)}
+On peut identifier les affectations/titres/salaires en cours via la valeur \texttt{9999-01-01}.
+
+\begin{lstlisting}[language=SQL,caption={Département, titres, salaires en cours}]
+-- Département actuel (affectations en cours)
+SELECT *
+FROM dept_emp
+WHERE to_date = DATE '9999-01-01'
+ORDER BY emp_no
+LIMIT 20;
+
+-- Titres actuels
+SELECT *
+FROM titles
+WHERE to_date = DATE '9999-01-01'
+ORDER BY emp_no
+LIMIT 20;
+
+-- Salaires actuels
+SELECT *
+FROM salaries
+WHERE to_date = DATE '9999-01-01'
+ORDER BY emp_no
+LIMIT 20;
+\end{lstlisting}
+
+\subsection{Exploration du schéma (colonnes)}
+\begin{lstlisting}[language=SQL,caption={Structure des tables (information\_schema)}]
+SELECT table_name, column_name, data_type
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name IN ('employees','departments','dept_emp',
+                     'dept_manager','titles','salaries')
+ORDER BY table_name, ordinal_position;
+\end{lstlisting}
+
+\section{Partie 2 — Jointures SQL et optimisation (vue matérialisée)}
+\subsection{Jointure \texttt{employees + salaries + titles}}
+La jointure se fait via \texttt{emp\_no}.
+
+\begin{lstlisting}[language=SQL,caption={Jointure SQL employees + salaries + titles}]
+SELECT
+  employe.emp_no,
+  employe.first_name,
+  employe.last_name,
+  salaire.salary,
+  salaire.from_date   AS salaire_date_debut,
+  salaire.to_date     AS salaire_date_fin,
+  titre.title,
+  titre.from_date     AS titre_date_debut,
+  titre.to_date       AS titre_date_fin
+FROM employees AS employe
+JOIN salaries  AS salaire ON salaire.emp_no = employe.emp_no
+JOIN titles    AS titre   ON titre.emp_no   = employe.emp_no;
+\end{lstlisting}
+
+\subsection{Temps d’exécution mesuré}
+Résultat observé lors de l’exécution :
+\begin{itemize}
+  \item \textbf{Total rows : 4\,638\,507}
+  \item \textbf{Temps : 16 secs 967 msec} (soit \textbf{16\,967 ms})
+\end{itemize}
+
+\subsection{Création d’une vue matérialisée}
+On crée une vue matérialisée contenant le résultat de la jointure.
+
+\begin{lstlisting}[language=SQL,caption={Création de la vue matérialisée}]
+CREATE MATERIALIZED VIEW vue_mat_employes_salaires_titres AS
+SELECT
+  employe.emp_no,
+  employe.first_name,
+  employe.last_name,
+  salaire.salary,
+  salaire.from_date   AS salaire_date_debut,
+  salaire.to_date     AS salaire_date_fin,
+  titre.title,
+  titre.from_date     AS titre_date_debut,
+  titre.to_date       AS titre_date_fin
+FROM employees AS employe
+JOIN salaries  AS salaire ON salaire.emp_no = employe.emp_no
+JOIN titles    AS titre   ON titre.emp_no   = employe.emp_no;
+\end{lstlisting}
+
+\subsection{Comparaison avec \texttt{EXPLAIN (ANALYZE, BUFFERS)}}
+\subsubsection{Accès à la vue matérialisée}
+\begin{lstlisting}[language=SQL,caption={EXPLAIN sur COUNT(*) de la vue matérialisée}]
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT COUNT(*)
+FROM vue_mat_employes_salaires_titres;
+\end{lstlisting}
+
+Temps observé : \textbf{Execution Time: 532.128 ms}.
+
+\subsubsection{Accès à la jointure directe}
+\begin{lstlisting}[language=SQL,caption={EXPLAIN sur COUNT(*) de la jointure directe}]
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT COUNT(*)
+FROM employees AS employe
+JOIN salaries  AS salaire ON salaire.emp_no = employe.emp_no
+JOIN titles    AS titre   ON titre.emp_no   = employe.emp_no;
+\end{lstlisting}
+
+Temps observé : \textbf{Execution Time: 1460.525 ms}.\\
+Le plan montre notamment des \textit{Parallel Seq Scan} et des \textit{Parallel Hash Join}, ainsi que des lectures/disques via \texttt{Buffers: shared hit=7610 read=13116}.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{p{7cm} r}
+\toprule
+\textbf{Opération} & \textbf{Temps observé} \\
+\midrule
+Jointure SQL (résultat complet, 4\,638\,507 lignes) & 16\,967 ms \\
+COUNT(*) sur jointure (EXPLAIN ANALYZE) & 1\,460.525 ms \\
+COUNT(*) sur vue matérialisée (EXPLAIN ANALYZE) & 532.128 ms \\
+\bottomrule
+\end{tabular}
+\caption{Comparaison des coûts (SQL).}
+\end{table}
+\FloatBarrier
+
+\subsection{Conclusion courte (Partie 2)}
+La vue matérialisée réduit le temps d’accès pour compter les lignes (\textbf{532.128 ms} contre \textbf{1460.525 ms}) car elle évite de recalculer la jointure à chaque requête : les données jointes sont déjà matérialisées et peuvent être relues plus directement.
+
+\section{Partie 3 — Export PostgreSQL vers fichiers JSON}
+\subsection{Export ligne par ligne avec \texttt{row\_to\_json}}
+Chaque enregistrement est converti en document JSON.
+
+\begin{lstlisting}[language=SQL,caption={row\_to\_json : un document JSON par ligne (exemples)}]
+-- employees
+SELECT row_to_json(ligne) AS document_json
+FROM (SELECT * FROM employees ORDER BY emp_no) AS ligne;
+
+-- departments
+SELECT row_to_json(ligne) AS document_json
+FROM (SELECT * FROM departments ORDER BY dept_no) AS ligne;
+
+-- dept_emp
+SELECT row_to_json(ligne) AS document_json
+FROM (SELECT * FROM dept_emp ORDER BY emp_no, dept_no, from_date) AS ligne;
+
+-- dept_manager
+SELECT row_to_json(ligne) AS document_json
+FROM (SELECT * FROM dept_manager ORDER BY dept_no, emp_no, from_date) AS ligne;
+
+-- titles
+SELECT row_to_json(ligne) AS document_json
+FROM (SELECT * FROM titles ORDER BY emp_no, from_date, title) AS ligne;
+
+-- salaries
+SELECT row_to_json(ligne) AS document_json
+FROM (SELECT * FROM salaries ORDER BY emp_no, from_date) AS ligne;
+\end{lstlisting}
+
+\subsection{Agrégation en tableau JSON avec \texttt{json\_agg}}
+Ici, l’ensemble des lignes est regroupé dans un \textbf{tableau JSON} unique.
+
+\begin{lstlisting}[language=SQL,caption={json\_agg : agrégation des documents en tableau JSON (exemples)}]
+-- employees
+SELECT json_agg(row_to_json(ligne)) AS tableau_json
+FROM (SELECT * FROM employees ORDER BY emp_no) AS ligne;
+
+-- departments
+SELECT json_agg(row_to_json(ligne)) AS tableau_json
+FROM (SELECT * FROM departments ORDER BY dept_no) AS ligne;
+
+-- dept_emp
+SELECT json_agg(row_to_json(ligne)) AS tableau_json
+FROM (SELECT * FROM dept_emp ORDER BY emp_no, dept_no, from_date) AS ligne;
+
+-- dept_manager
+SELECT json_agg(row_to_json(ligne)) AS tableau_json
+FROM (SELECT * FROM dept_manager ORDER BY dept_no, emp_no, from_date) AS ligne;
+
+-- titles
+SELECT json_agg(row_to_json(ligne)) AS tableau_json
+FROM (SELECT * FROM titles ORDER BY emp_no, from_date, title) AS ligne;
+
+-- salaries
+SELECT json_agg(row_to_json(ligne)) AS tableau_json
+FROM (SELECT * FROM salaries ORDER BY emp_no, from_date) AS ligne;
+\end{lstlisting}
+
+\subsection{Export dans des fichiers via \texttt{COPY}}
+Problème rencontré : \texttt{COPY TO} écrit un fichier \textbf{côté serveur PostgreSQL}.\\
+Solution appliquée : création d’un répertoire local accessible au serveur (instance locale) : \texttt{C:\textbackslash pg\_exports}.
+
+\begin{lstlisting}[language=SQL,caption={COPY : export des 6 tables en fichiers JSON}]
+-- Dossier cree au prealable : C:\pg_exports
+
+COPY (
+  SELECT json_agg(row_to_json(ligne))
+  FROM (SELECT * FROM employees ORDER BY emp_no) AS ligne
+) TO 'C:/pg_exports/employees.json';
+
+COPY (
+  SELECT json_agg(row_to_json(ligne))
+  FROM (SELECT * FROM departments ORDER BY dept_no) AS ligne
+) TO 'C:/pg_exports/departments.json';
+
+COPY (
+  SELECT json_agg(row_to_json(ligne))
+  FROM (SELECT * FROM dept_emp ORDER BY emp_no, dept_no, from_date) AS ligne
+) TO 'C:/pg_exports/dept_emp.json';
+
+COPY (
+  SELECT json_agg(row_to_json(ligne))
+  FROM(SELECT * FROM dept_manager ORDER BY dept_no, emp_no, from_date) AS ligne
+) TO 'C:/pg_exports/dept_manager.json';
+
+COPY (
+  SELECT json_agg(row_to_json(ligne))
+  FROM(SELECT*FROM titles ORDER BY emp_no,from_date,title)AS ligne
+) TO 'C:/pg_exports/titles.json';
+
+COPY (
+  SELECT json_agg(row_to_json(ligne))
+  FROM (SELECT*FROM salaries ORDER BY emp_no, from_date) AS ligne
+) TO 'C:/pg_exports/salaries.json';
+\end{lstlisting}
+\FloatBarrier
+
+\section{Partie 4 — Import MongoDB des fichiers JSON}
+\subsection{Import via \texttt{mongoimport}}
+On importe chaque fichier JSON (tableau JSON) dans une base MongoDB nommée \texttt{employees}, avec une collection par fichier.
+
+\begin{lstlisting}[language=bash,caption={Commandes mongoimport (6 collections)}]
+mongoimport --db employees --collection employees     --file "C:\pg_exports\employees.json"     --jsonArray --drop
+mongoimport --db employees --collection departments   --file "C:\pg_exports\departments.json"   --jsonArray --drop
+mongoimport --db employees --collection dept_emp      --file "C:\pg_exports\dept_emp.json"      --jsonArray --drop
+mongoimport --db employees --collection dept_manager  --file "C:\pg_exports\dept_manager.json"  --jsonArray --drop
+mongoimport --db employees --collection titles        --file "C:\pg_exports\titles.json"        --jsonArray --drop
+mongoimport --db employees --collection salaries      --file "C:\pg_exports\salaries.json"      --jsonArray --drop
+\end{lstlisting}
+
+Résultats observés lors des imports :
+\begin{itemize}
+  \item \texttt{employees} : \textbf{300024} documents importés
+  \item \texttt{departments} : \textbf{9} documents importés
+  \item \texttt{dept\_emp} : \textbf{331603} documents importés
+  \item \texttt{dept\_manager} : \textbf{24} documents importés
+  \item \texttt{titles} : \textbf{443308} documents importés
+  \item \texttt{salaries} : \textbf{2844047} documents importés
+\end{itemize}
+
+\subsection{Vérifications dans \texttt{mongosh}}
+\begin{lstlisting}[language=JavaScript,caption={Vérification des collections et comptages}]
+use employees
+show collections
+
+db.employees.countDocuments()
+db.departments.countDocuments()
+db.dept_emp.countDocuments()
+db.dept_manager.countDocuments()
+db.titles.countDocuments()
+db.salaries.countDocuments()
+
+db.employees.findOne()
+\end{lstlisting}
+
+Exemple observé (\texttt{findOne}) :
+\begin{itemize}
+  \item \texttt{emp\_no: 10001}
+  \item \texttt{birth\_date: '1953-09-02'}
+  \item \texttt{first\_name: 'Georgi'}
+  \item \texttt{last\_name: 'Facello'}
+  \item \texttt{gender: 'M'}
+  \item \texttt{hire\_date: '1986-06-26'}
+\end{itemize}
+\FloatBarrier
+
+\section{Partie 5 — Jointures MongoDB et dénormalisation}
+\subsection{Création d’index pour accélérer \texttt{\$lookup}}
+Avant d’effectuer des jointures, on crée des index sur \texttt{emp\_no} dans les collections du côté ``many''.
+
+\begin{lstlisting}[language=JavaScript,caption={Index sur emp\_no pour titles et salaries}]
+db.titles.createIndex({ emp_no: 1 })
+db.salaries.createIndex({ emp_no: 1 })
+\end{lstlisting}
+
+\subsection{5.1 — Jointure employees \texorpdfstring{$\leftrightarrow$}{<->} titles (1 \texttt{\$lookup})}
+\begin{lstlisting}[language=JavaScript,caption={Jointure MongoDB employees + titles (test sur 1 employe)}]
+db.employees.aggregate([
+  { $match: { emp_no: 10001 } },
+  { $lookup: { from: "titles", localField: "emp_no", foreignField: "emp_no", as: "titles" } }
+]).toArray()
+\end{lstlisting}
+
+\subsection{5.2 — Jointure employees \texorpdfstring{$\leftrightarrow$}{<->} titles \texorpdfstring{$\leftrightarrow$}{<->} salaries (2 \texttt{\$lookup})}
+\begin{lstlisting}[language=JavaScript,caption={Pipeline de jointure employees + titles + salaries}]
+const pipeline_jointure_3 = [
+  { $lookup: { from: "titles",   localField: "emp_no", foreignField: "emp_no", as: "titles"   } },
+  { $lookup: { from: "salaries", localField: "emp_no", foreignField: "emp_no", as: "salaries" } }
+]
+\end{lstlisting}
+
+\subsection{5.3 — Temps d’exécution de la jointure MongoDB}
+Mesure réalisée via \texttt{explain("executionStats")} :
+
+\begin{lstlisting}[language=JavaScript,caption={Mesure du cout de jointure MongoDB}]
+db.employees.explain("executionStats").aggregate(
+  pipeline_jointure_3,
+  { allowDiskUse: true }
+)
+\end{lstlisting}
+
+Valeurs observées :
+\begin{itemize}
+  \item \textbf{nReturned: 300024}
+  \item \textbf{executionTimeMillis: 56400} (soit \textbf{56.4 s})
+  \item Stratégie indiquée : \textbf{IndexedLoopJoin} (index \texttt{emp\_no\_1} utilisé)
+\end{itemize}
+
+\subsection{5.4 — Dénormalisation avec \texttt{\$project} (suppression des doublons)}
+Objectif : produire un document employé enrichi avec deux tableaux :
+\begin{itemize}
+  \item \texttt{titles} : liste des titres (avec dates)
+  \item \texttt{salaries} : liste des salaires (avec dates)
+\end{itemize}
+et éviter d’embarquer des champs inutiles (doublons \texttt{emp\_no}, doublons \texttt{\_id} des collections importées).
+
+\begin{lstlisting}[language=JavaScript,caption={Pipeline de denormalisation (projection + mapping)}]
+let pipeline_denormalisation = [
+  ...pipeline_jointure_3, {$project: { _id: "$emp_no", birth_date: 1, first_name: 1, last_name: 1,
+      gender: 1, hire_date: 1,
+      titles: {$map: {input: "$titles", as: "t", in: {title: "$$t.title", from_date: "$$t.from_date",
+            to_date: "$$t.to_date"}}},
+      salaries: {$map: {input: "$salaries", as: "s", in: {salary: "$$s.salary",
+            from_date: "$$s.from_date", to_date: "$$s.to_date"}}}}}];
+
+-- J'test sur 1 employé pour vérifier
+db.employees.aggregate([{ $match: { emp_no: 10001 } }, ...pipeline_denormalisation], { allowDiskUse: true }).toArray();
+\end{lstlisting}
+
+Test sur un employé (validation) :
+\begin{lstlisting}[language=JavaScript,caption={Verification sur emp\_no = 10001}]
+db.employees.aggregate(
+  [{ $match: { emp_no: 10001 } }, ...pipeline_denormalisation],
+  { allowDiskUse: true }
+).toArray();
+\end{lstlisting}
+
+Résultat observé (extrait) :
+\begin{itemize}
+  \item \texttt{\_id = 10001}
+  \item \texttt{titles} contient \textbf{1} document (``Senior Engineer'', \texttt{to\_date = 9999-01-01})
+  \item \texttt{salaries} contient \textbf{17} documents pour cet employé (dates et montants)
+\end{itemize}
+
+\subsection{5.5 — Sauvegarde dans une nouvelle collection (\texttt{\$merge})}
+On sauvegarde le résultat dans \texttt{employees\_denormalises}.\\
+Mesure du temps via \texttt{console.time}.
+
+\begin{lstlisting}[language=JavaScript,caption={Sauvegarde avec \$merge + mesure du temps}]
+console.time("creation_employees_denormalises");
+
+db.employees.aggregate([
+    ...pipeline_denormalisation,
+    {$merge: {into: "employees_denormalises", on: "_id", whenMatched: "replace", whenNotMatched: "insert"}}],
+  { allowDiskUse: true }).toArray();
+
+console.timeEnd("creation_employees_denormalises");
+\end{lstlisting}
+
+Temps observé :
+\begin{itemize}
+  \item \textbf{creation\_employees\_denormalises 4:47.119 (m:ss.mmm)}
+  \item soit \textbf{287.119 s} (environ)
+\end{itemize}
+
+\subsection{5.6 — Délai d’accès aux informations après dénormalisation}
+On mesure l’accès à toutes les informations d’un employé via la nouvelle collection.\\
+Exemple : \texttt{\_id = 10001}.
+
+\begin{lstlisting}[language=JavaScript,caption={Acces a un document denormalise + explain}]
+db.employees_denormalises.explain("executionStats").find({ _id: 10001 }).limit(1);
+\end{lstlisting}
+
+Valeurs observées :
+\begin{itemize}
+  \item Plan : \textbf{IXSCAN} sur \texttt{\_id\_} (index natif)
+  \item \textbf{executionTimeMillis: 0}
+  \item \textbf{totalKeysExamined: 1}, \textbf{totalDocsExamined: 1}
+\end{itemize}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{p{8cm} r}
+\toprule
+\textbf{Opération} & \textbf{Temps observé} \\
+\midrule
+Jointure MongoDB (employees + titles + salaries) & 56\,400 ms \\
+Construction de la collection dénormalisée (\$merge) & 4:47.119 \\
+Accès à un employé dénormalisé par \_id (find + explain) & 0 ms \\
+\bottomrule
+\end{tabular}
+\caption{Comparaison des coûts (MongoDB).}
+\end{table}
+\FloatBarrier
+
+\section{Partie 6 — Conclusions}
+\subsection{Consigne}
+\textit{Dans quel(s) cas de figure cette dénormalisation, ainsi proposée, est-elle opportune ? Et dans quel(s) cas ne l’est-elle pas ?}
+
+\subsection{Quand la dénormalisation est opportune}
+La dénormalisation proposée (un document \texttt{employee} contenant \texttt{titles[]} et \texttt{salaries[]}) est pertinente lorsque :
+\begin{itemize}
+  \item \textbf{Les accès sont centrés sur l’employé} : les requêtes typiques demandent ``toutes les infos d’un employé'' (identité + titres + salaires).
+  \item \textbf{Le système est orienté lecture (read-heavy)} : on lit plus souvent qu’on ne met à jour.
+  \item \textbf{On veut éviter le coût récurrent des jointures} : ici, la jointure MongoDB sur tout le dataset a coûté \textbf{56.4 s}, alors qu’après dénormalisation l’accès par \texttt{\_id} est immédiat (explain : \textbf{0 ms} observé).
+  \item \textbf{Le ``many'' reste raisonnablement borné} : par exemple, pour \texttt{emp\_no=10001}, on observe \textbf{1 titre} courant et \textbf{17 salaires} historisés, ce qui reste compatible avec un document unique.
+  \item \textbf{On accepte la duplication comme compromis} : on stocke les informations au même endroit pour accélérer la lecture (coût : plus d’espace et un traitement de construction).
+\end{itemize}
+
+\subsection{Quand la dénormalisation n’est pas opportune}
+Cette dénormalisation devient peu adaptée lorsque :
+\begin{itemize}
+  \item \textbf{Les mises à jour sont fréquentes} (ex. ajout régulier de salaires/titres, corrections) : on doit maintenir des tableaux internes, ce qui complique l’écriture et augmente le risque d’incohérences si plusieurs copies existent.
+  \item \textbf{Le côté ``many'' est très volumineux / non borné} : les tableaux peuvent grossir fortement et mener à des documents trop lourds.
+  \item \textbf{On dépasse les limites de taille d’un document} : MongoDB impose une taille maximale pour un document BSON\footnote{\href{https://www.mongodb.com/docs/manual/reference/limits/\#mongodb-limit-BSON-Document-Size}{MongoDB Docs — Limits: BSON Document Size (consulté via la documentation officielle).}}.
+  \item \textbf{Les requêtes sont transverses} (ex. statistiques globales sur \texttt{salaries} ou \texttt{titles} indépendamment de l’employé) : garder des collections séparées peut rester préférable (indexation, agrégations plus directes, moindre duplication).
+  \item \textbf{On veut conserver une normalisation forte} : contrainte d’intégrité et simplicité de maintenance côté données (logique proche d’un modèle relationnel).
+\end{itemize}
+
+\subsection*{Synthèse}
+\textbf{Oui, la dénormalisation est opportune} si l’on vise un accès rapide et complet aux informations \emph{par employé}, avec un volume de sous-documents raisonnable.\\
+\textbf{Non, elle ne l’est pas} si les sous-listes sont massives, très dynamiques, ou si l’on a besoin d’analyses globales fréquentes sur les entités ``many'' sans passer par l’employé.
+
+\FloatBarrier
+
+% =========================
+% Références (liens officiels)
+% =========================
+\newpage
+\section*{Références}
+
+\begin{itemize}
+  \item 
+  \href{https://www.postgresql.org/docs/current/functions-json.html}{\textit{PostgreSQL — JSON functions (\texttt{row\_to\_json}, \texttt{json\_agg})}}
+
+
+  \item 
+  \href{https://www.postgresql.org/docs/current/sql-copy.html}{\textit{PostgreSQL — Commande \texttt{COPY}}}
+
+  \item 
+  \href{https://www.postgresql.org/docs/current/sql-creatematerializedview.html}{\textit{PostgreSQL — \texttt{CREATE MATERIALIZED VIEW}}}
+
+  \item 
+  \href{https://www.mongodb.com/docs/manual/reference/operator/aggregation/lookup/}{\textit{MongoDB — Aggregation \texttt{\$lookup}}}
+
+  \item 
+  \href{https://www.mongodb.com/docs/manual/reference/operator/aggregation/project/}{\textit{MongoDB — Aggregation \texttt{\$project}}}
+
+  \item 
+  \href{https://www.mongodb.com/docs/manual/reference/operator/aggregation/merge/}{\textit{MongoDB — Aggregation \texttt{\$merge}}}
+
+  \item 
+  \href{https://www.mongodb.com/docs/manual/reference/limits/}{\textit{MongoDB — Limits (dont taille maximale des documents BSON)}}
+\end{itemize}
+
+\end{document}
