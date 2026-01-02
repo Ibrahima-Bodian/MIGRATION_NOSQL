@@ -1,9 +1,9 @@
 --#########################################################################
 --##                                                                     ##
---## CE CODE PROPOSE DES R2PONSES DANS LE DOCUMENT "Énoncé_projet_NoSQL" ##
---## IL NE FAUT PAS L'EX2CUTER INT2GRALEMENT, CA VA FAIRE ERRERU         ##
---## VOUS POUVEZ EX2CUTER LA PARTIE SQL LIGNE PAR LIGNE POUR REPONDRE    ##
---##                   LIGNE PAR LIGNE.                                  ##
+--## CE CODE PROPOSE DES R2PONSES AUX QUESTIONS DANS LE DOCUMENT         ##
+--## "Énoncé_projet_NoSQL". IL NE FAUT PAS L'EX2CUTER INT2GRALEMENT,     ##
+--##  CA VA FAIRE ERRERU VOUS POUVEZ EX2CUTER LA PARTIE SQL LIGNE PAR    ##
+--##             LIGNE POUR REPONDRE LA PARTIE SQL.                      ##
 --##                                                                     ##
 --## IL FAUT LE TERMINAL CMD POUR EXECUTER LA PARTIE 4 JUSQU'A LA FIN    ##
 --##                                                                     ##
@@ -260,7 +260,7 @@ const pipeline_jointure_3 = [{$lookup: {from: "titles", localField: "emp_no", fo
 -- 5.3 — Mesurer le temps d’exécution de la jointure (MongoDB)
 db.employees .explain("executionStats") .aggregate(pipeline_jointure_3, { allowDiskUse: true })
 
---A partir de la, ça walk pas
+
 --5.4 — Dénormalisation + $project (supprimer doublons emp_no et _id)
 let pipeline_denormalisation = [
   ...pipeline_jointure_3, {$project: { _id: "$emp_no", birth_date: 1, first_name: 1, last_name: 1,
@@ -270,7 +270,7 @@ let pipeline_denormalisation = [
       salaries: {$map: {input: "$salaries", as: "s", in: {salary: "$$s.salary",
             from_date: "$$s.from_date", to_date: "$$s.to_date"}}}}}];
 
--- Test sur 1 employé (OK pour vérifier)
+-- J'test sur 1 employé pour vérifier
 db.employees.aggregate([{ $match: { emp_no: 10001 } }, ...pipeline_denormalisation], { allowDiskUse: true }).toArray();
 
 
