@@ -1,0 +1,7 @@
+POWER BI/
+*.pbix
+*.pdf
+
+# (optionnel) exports lourds
+exports_json/salaries.json
+postgresql/chargement/load_salaries.sql

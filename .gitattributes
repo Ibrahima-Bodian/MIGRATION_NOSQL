@@ -1,2 +1,0 @@
-exports_json/salaries.json filter=lfs diff=lfs merge=lfs -text
-postgresql/chargement/load_salaries.sql filter=lfs diff=lfs merge=lfs -text
