@@ -146,7 +146,7 @@
 \section{Objectif du projet}
 Ce projet a pour objectif de :
 \begin{itemize}
-  \item manipuler le dataset \textit{employees} dans PostgreSQL (exploration, contrôles, jointures) ;
+  \item manipuler les données \textit{employees} dans PostgreSQL (exploration, contrôles, jointures) ;
   \item mesurer le coût d’une jointure SQL (\texttt{employees} + \texttt{salaries} + \texttt{titles}) ;
   \item optimiser l’accès via une \textbf{vue matérialisée} ;
   \item exporter les tables PostgreSQL en fichiers \textbf{JSON} ;
@@ -221,36 +221,33 @@ salaries       & 2844047 \\
 \end{table}
 \FloatBarrier
 
-\subsection{Enregistrements \textit{actuels} (to\_date = 9999-01-01)}
+
+\subsection{Exploration}
+\subsubsection*{Données \textit{actuels}}
+
 On peut identifier les affectations/titres/salaires en cours via la valeur \texttt{9999-01-01}.
 
 \begin{lstlisting}[language=SQL,caption={Département, titres, salaires en cours}]
 -- Département actuel (affectations en cours)
-SELECT *
-FROM dept_emp
+SELECT * FROM dept_emp
 WHERE to_date = DATE '9999-01-01'
-ORDER BY emp_no
-LIMIT 20;
+ORDER BY emp_no LIMIT 20;
 
 -- Titres actuels
-SELECT *
-FROM titles
+SELECT * FROM titles
 WHERE to_date = DATE '9999-01-01'
-ORDER BY emp_no
-LIMIT 20;
+ORDER BY emp_no LIMIT 20;
 
 -- Salaires actuels
-SELECT *
-FROM salaries
+SELECT * FROM salaries
 WHERE to_date = DATE '9999-01-01'
-ORDER BY emp_no
-LIMIT 20;
+ORDER BY emp_no LIMIT 20;
 \end{lstlisting}
 
-\subsection{Exploration du schéma (colonnes)}
+
+\subsubsection*{Schéma (colonnes)}
 \begin{lstlisting}[language=SQL,caption={Structure des tables (information\_schema)}]
-SELECT table_name, column_name, data_type
-FROM information_schema.columns
+SELECT table_name, column_name, data_type FROM information_schema.columns
 WHERE table_schema = 'public'
   AND table_name IN ('employees','departments','dept_emp',
                      'dept_manager','titles','salaries')
@@ -304,8 +301,11 @@ JOIN salaries  AS salaire ON salaire.emp_no = employe.emp_no
 JOIN titles    AS titre   ON titre.emp_no   = employe.emp_no;
 \end{lstlisting}
 
-\subsection{Comparaison avec \texttt{EXPLAIN (ANALYZE, BUFFERS)}}
-\subsubsection{Accès à la vue matérialisée}
+\subsection{Comparaison avec \texttt{EXPLAIN (ANALYZE, BUFFERS)}}\\
+\newline
+\textbf{}
+\newline
+\textbf{Accès à la vue matérialisée}
 \begin{lstlisting}[language=SQL,caption={EXPLAIN sur COUNT(*) de la vue matérialisée}]
 EXPLAIN (ANALYZE, BUFFERS)
 SELECT COUNT(*)
@@ -313,8 +313,13 @@ FROM vue_mat_employes_salaires_titres;
 \end{lstlisting}
 
 Temps observé : \textbf{Execution Time: 532.128 ms}.
-
-\subsubsection{Accès à la jointure directe}
+\newline
+\textbf{}
+\newline
+\textbf{Accès à la jointure directe}
+\newline
+\textbf{}
+\newline
 \begin{lstlisting}[language=SQL,caption={EXPLAIN sur COUNT(*) de la jointure directe}]
 EXPLAIN (ANALYZE, BUFFERS)
 SELECT COUNT(*)
@@ -334,7 +339,6 @@ Le plan montre notamment des \textit{Parallel Seq Scan} et des \textit{Parallel 
 \textbf{Opération} & \textbf{Temps observé} \\
 \midrule
 Jointure SQL (résultat complet, 4\,638\,507 lignes) & 16\,967 ms \\
-COUNT(*) sur jointure (EXPLAIN ANALYZE) & 1\,460.525 ms \\
 COUNT(*) sur vue matérialisée (EXPLAIN ANALYZE) & 532.128 ms \\
 \bottomrule
 \end{tabular}
@@ -343,7 +347,7 @@ COUNT(*) sur vue matérialisée (EXPLAIN ANALYZE) & 532.128 ms \\
 \FloatBarrier
 
 \subsection{Conclusion courte (Partie 2)}
-La vue matérialisée réduit le temps d’accès pour compter les lignes (\textbf{532.128 ms} contre \textbf{1460.525 ms}) car elle évite de recalculer la jointure à chaque requête : les données jointes sont déjà matérialisées et peuvent être relues plus directement.
+La vue matérialisée réduit le temps d’accès pour compter les lignes (\textbf{532.128 ms} contre \textbf{16 967 ms}) car elle évite de recalculer la jointure à chaque requête : les données jointes sont déjà matérialisées et peuvent être relues plus directement.
 
 \section{Partie 3 — Export PostgreSQL vers fichiers JSON}
 \subsection{Export ligne par ligne avec \texttt{row\_to\_json}}
@@ -351,27 +355,27 @@ Chaque enregistrement est converti en document JSON.
 
 \begin{lstlisting}[language=SQL,caption={row\_to\_json : un document JSON par ligne (exemples)}]
 -- employees
-SELECT row_to_json(ligne) AS document_json
+SELECT row_to_json(ligne)
 FROM (SELECT * FROM employees ORDER BY emp_no) AS ligne;
 
 -- departments
-SELECT row_to_json(ligne) AS document_json
+SELECT row_to_json(ligne)
 FROM (SELECT * FROM departments ORDER BY dept_no) AS ligne;
 
 -- dept_emp
-SELECT row_to_json(ligne) AS document_json
+SELECT row_to_json(ligne) 
 FROM (SELECT * FROM dept_emp ORDER BY emp_no, dept_no, from_date) AS ligne;
 
 -- dept_manager
-SELECT row_to_json(ligne) AS document_json
+SELECT row_to_json(ligne)
 FROM (SELECT * FROM dept_manager ORDER BY dept_no, emp_no, from_date) AS ligne;
 
 -- titles
-SELECT row_to_json(ligne) AS document_json
+SELECT row_to_json(ligne)
 FROM (SELECT * FROM titles ORDER BY emp_no, from_date, title) AS ligne;
 
 -- salaries
-SELECT row_to_json(ligne) AS document_json
+SELECT row_to_json(ligne)
 FROM (SELECT * FROM salaries ORDER BY emp_no, from_date) AS ligne;
 \end{lstlisting}
 
@@ -380,27 +384,27 @@ Ici, l’ensemble des lignes est regroupé dans un \textbf{tableau JSON} unique.
 
 \begin{lstlisting}[language=SQL,caption={json\_agg : agrégation des documents en tableau JSON (exemples)}]
 -- employees
-SELECT json_agg(row_to_json(ligne)) AS tableau_json
+SELECT json_agg(row_to_json(ligne))
 FROM (SELECT * FROM employees ORDER BY emp_no) AS ligne;
 
 -- departments
-SELECT json_agg(row_to_json(ligne)) AS tableau_json
+SELECT json_agg(row_to_json(ligne))
 FROM (SELECT * FROM departments ORDER BY dept_no) AS ligne;
 
 -- dept_emp
-SELECT json_agg(row_to_json(ligne)) AS tableau_json
+SELECT json_agg(row_to_json(ligne))
 FROM (SELECT * FROM dept_emp ORDER BY emp_no, dept_no, from_date) AS ligne;
 
 -- dept_manager
-SELECT json_agg(row_to_json(ligne)) AS tableau_json
+SELECT json_agg(row_to_json(ligne))
 FROM (SELECT * FROM dept_manager ORDER BY dept_no, emp_no, from_date) AS ligne;
 
 -- titles
-SELECT json_agg(row_to_json(ligne)) AS tableau_json
+SELECT json_agg(row_to_json(ligne))
 FROM (SELECT * FROM titles ORDER BY emp_no, from_date, title) AS ligne;
 
 -- salaries
-SELECT json_agg(row_to_json(ligne)) AS tableau_json
+SELECT json_agg(row_to_json(ligne))
 FROM (SELECT * FROM salaries ORDER BY emp_no, from_date) AS ligne;
 \end{lstlisting}
 
@@ -501,7 +505,7 @@ db.titles.createIndex({ emp_no: 1 })
 db.salaries.createIndex({ emp_no: 1 })
 \end{lstlisting}
 
-\subsection{5.1 — Jointure employees \texorpdfstring{$\leftrightarrow$}{<->} titles (1 \texttt{\$lookup})}
+\subsection{Jointure employees \texorpdfstring{$\leftrightarrow$}{<->} titles (1 \texttt{\$lookup})}
 \begin{lstlisting}[language=JavaScript,caption={Jointure MongoDB employees + titles (test sur 1 employe)}]
 db.employees.aggregate([
   { $match: { emp_no: 10001 } },
@@ -509,7 +513,7 @@ db.employees.aggregate([
 ]).toArray()
 \end{lstlisting}
 
-\subsection{5.2 — Jointure employees \texorpdfstring{$\leftrightarrow$}{<->} titles \texorpdfstring{$\leftrightarrow$}{<->} salaries (2 \texttt{\$lookup})}
+\subsection{Jointure employees \texorpdfstring{$\leftrightarrow$}{<->} titles \texorpdfstring{$\leftrightarrow$}{<->} salaries (2 \texttt{\$lookup})}
 \begin{lstlisting}[language=JavaScript,caption={Pipeline de jointure employees + titles + salaries}]
 const pipeline_jointure_3 = [
   { $lookup: { from: "titles",   localField: "emp_no", foreignField: "emp_no", as: "titles"   } },
@@ -517,7 +521,7 @@ const pipeline_jointure_3 = [
 ]
 \end{lstlisting}
 
-\subsection{5.3 — Temps d’exécution de la jointure MongoDB}
+\subsection{Temps d’exécution de la jointure MongoDB}
 Mesure réalisée via \texttt{explain("executionStats")} :
 
 \begin{lstlisting}[language=JavaScript,caption={Mesure du cout de jointure MongoDB}]
@@ -534,7 +538,7 @@ Valeurs observées :
   \item Stratégie indiquée : \textbf{IndexedLoopJoin} (index \texttt{emp\_no\_1} utilisé)
 \end{itemize}
 
-\subsection{5.4 — Dénormalisation avec \texttt{\$project} (suppression des doublons)}
+\subsection{Dénormalisation avec \texttt{\$project} (suppression des doublons)}
 Objectif : produire un document employé enrichi avec deux tableaux :
 \begin{itemize}
   \item \texttt{titles} : liste des titres (avec dates)
@@ -570,28 +574,24 @@ Résultat observé (extrait) :
   \item \texttt{salaries} contient \textbf{17} documents pour cet employé (dates et montants)
 \end{itemize}
 
-\subsection{5.5 — Sauvegarde dans une nouvelle collection (\texttt{\$merge})}
+\subsection{Sauvegarde dans une nouvelle collection (\texttt{\$merge})}
 On sauvegarde le résultat dans \texttt{employees\_denormalises}.\\
 Mesure du temps via \texttt{console.time}.
 
 \begin{lstlisting}[language=JavaScript,caption={Sauvegarde avec \$merge + mesure du temps}]
-console.time("creation_employees_denormalises");
+console.time("lecture_complete_denormalise");
+db.employees_denormalises.find({}).toArray();
+console.timeEnd("lecture_complete_denormalise");
 
-db.employees.aggregate([
-    ...pipeline_denormalisation,
-    {$merge: {into: "employees_denormalises", on: "_id", whenMatched: "replace", whenNotMatched: "insert"}}],
-  { allowDiskUse: true }).toArray();
-
-console.timeEnd("creation_employees_denormalises");
 \end{lstlisting}
 
 Temps observé :
 \begin{itemize}
-  \item \textbf{creation\_employees\_denormalises 4:47.119 (m:ss.mmm)}
-  \item soit \textbf{287.119 s} (environ)
+  \item \textbf{creation\_employees\_denormalises 27.262s s}
+ 
 \end{itemize}
 
-\subsection{5.6 — Délai d’accès aux informations après dénormalisation}
+\subsection{Délai d’accès aux informations après dénormalisation}
 On mesure l’accès à toutes les informations d’un employé via la nouvelle collection.\\
 Exemple : \texttt{\_id = 10001}.
 
@@ -611,11 +611,11 @@ Valeurs observées :
 \renewcommand{\arraystretch}{1.2}
 \begin{tabular}{p{8cm} r}
 \toprule
-\textbf{Opération} & \textbf{Temps observé} \\
+\textbf{Opération} & \textbf{Temps observé (ms)} \\
 \midrule
 Jointure MongoDB (employees + titles + salaries) & 56\,400 ms \\
-Construction de la collection dénormalisée (\$merge) & 4:47.119 \\
-Accès à un employé dénormalisé par \_id (find + explain) & 0 ms \\
+Construction de la collection dénormalisée (\$merge) & 27.262 s \\
+
 \bottomrule
 \end{tabular}
 \caption{Comparaison des coûts (MongoDB).}
@@ -623,15 +623,17 @@ Accès à un employé dénormalisé par \_id (find + explain) & 0 ms \\
 \FloatBarrier
 
 \section{Partie 6 — Conclusions}
-\subsection{Consigne}
+
 \textit{Dans quel(s) cas de figure cette dénormalisation, ainsi proposée, est-elle opportune ? Et dans quel(s) cas ne l’est-elle pas ?}
+
 
 \subsection{Quand la dénormalisation est opportune}
 La dénormalisation proposée (un document \texttt{employee} contenant \texttt{titles[]} et \texttt{salaries[]}) est pertinente lorsque :
 \begin{itemize}
   \item \textbf{Les accès sont centrés sur l’employé} : les requêtes typiques demandent ``toutes les infos d’un employé'' (identité + titres + salaires).
   \item \textbf{Le système est orienté lecture (read-heavy)} : on lit plus souvent qu’on ne met à jour.
-  \item \textbf{On veut éviter le coût récurrent des jointures} : ici, la jointure MongoDB sur tout le dataset a coûté \textbf{56.4 s}, alors qu’après dénormalisation l’accès par \texttt{\_id} est immédiat (explain : \textbf{0 ms} observé).
+  \item \textbf{On veut éviter le coût récurrent des jointures} : ici, la jointure MongoDB sur tous les données (employees + titles + sa-
+laries) a coûté \textbf{56.4 s}, alors qu’après dénormalisation l’accès par \texttt{\_id} est immédiat (explain : \textbf{0 ms} observé).
   \item \textbf{Le ``many'' reste raisonnablement borné} : par exemple, pour \texttt{emp\_no=10001}, on observe \textbf{1 titre} courant et \textbf{17 salaires} historisés, ce qui reste compatible avec un document unique.
   \item \textbf{On accepte la duplication comme compromis} : on stocke les informations au même endroit pour accélérer la lecture (coût : plus d’espace et un traitement de construction).
 \end{itemize}
